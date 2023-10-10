@@ -20,7 +20,7 @@ func main() {
 			return fiber.NewError(fiber.StatusBadRequest, "Login inválido")
 		}
 
-		// Save info in DB
+		// Save info in Data Base
 
 		// Create jwt token
 		return nil
