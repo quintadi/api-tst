@@ -2,10 +2,27 @@ package main
 
 import "github.com/gofiber/fiber/v2"
 
+type SignupRequest struct {
+	Name     string
+	Email    string
+	Password string
+}
+
 func main() {
 	app := fiber.New()
 
-	app.Get("/login", func(c *fiber.Ctx) error {
+	app.Get("/signup", func(c *fiber.Ctx) error {
+		req := new(SignupRequest)
+		if err := c.BodyParser(req); err != nil {
+			return err
+		}
+		if req.Name == "" || req.Email == "" || req.Password == "" {
+			return fiber.NewError(fiber.StatusBadRequest, "Login inválido")
+		}
+
+		// Save info in DB
+
+		// Create jwt token
 		return nil
 	})
 
