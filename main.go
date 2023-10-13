@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
+	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/quintadi/api-tst/data"
@@ -12,7 +14,12 @@ import (
 type SignupRequest struct {
 	Name     string
 	Email    string
-	Password string `json:"_"`
+	Password string
+}
+
+type LoginRequest struct {
+	Email    string
+	Password string
 }
 
 func main() {
@@ -23,12 +30,14 @@ func main() {
 		panic(err)
 	}
 
-	app.Get("/signup", func(c *fiber.Ctx) error {
+	app.Post("/signup", func(c *fiber.Ctx) error {
 		req := new(SignupRequest)
 		if err := c.BodyParser(req); err != nil {
+			fmt.Println(err)
 			return err
 		}
 		if req.Name == "" || req.Email == "" || req.Password == "" {
+			// return c.JSON(fiber.Map{"name": req.Name, "email": req.Email, "pass": req.Password})
 			return fiber.NewError(fiber.StatusBadRequest, "Login inválido")
 		}
 
@@ -44,7 +53,7 @@ func main() {
 			Password: string(Hash),
 		}
 
-		_, err = engine.Insert(&user)
+		_, err = engine.Insert(user)
 		if err != nil {
 			return err
 		}
@@ -58,17 +67,49 @@ func main() {
 		return c.JSON(fiber.Map{"token": token, "exp": exp, "user": user})
 	})
 
-	app.Get("/login", func(c *fiber.Ctx) error {
-		return nil
+	app.Post("/login", func(c *fiber.Ctx) error {
+		req := new(LoginRequest)
+		if err := c.BodyParser(req); err != nil {
+			return err
+		}
+		if req.Email == "" || req.Password == "" {
+			return fiber.NewError(fiber.StatusBadRequest, "Login datos inválidos")
+		}
+
+		user := new(data.User)
+		has, err := engine.Where("email = ?", req.Email).Desc("id").Get(user)
+		if err != nil {
+			return err
+		}
+		if !has {
+			return fiber.NewError(fiber.StatusBadRequest, "datos invalidos de usuario")
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+			return err
+		}
+
+		// Create jwt token
+		token, exp, err := createJWTtoken(*user)
+		if err != nil {
+			return err
+		}
+
+		return c.JSON(fiber.Map{"token": token, "exp": exp, "user": user})
+
 	})
 
-	app.Get("/private", func(c *fiber.Ctx) error {
+	private := app.Group("/private")
+	private.Use(jwtware.New(jwtware.Config{
+		SigningKey: jwtware.SigningKey{Key: []byte("secret")},
+	}))
+	private.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"path":    "private"})
 	})
 
-	app.Get("/public", func(c *fiber.Ctx) error {
+	public := app.Group("/public")
+	public.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"path":    "public"})
